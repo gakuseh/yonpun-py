@@ -180,7 +180,7 @@ class TaskSplitCollection:
             if isinstance(task, OnceTask):
                 self._task_splits += TaskSplitCollection.create_splits_for_once_task(task, start)
             else:
-                self._task_splits += TaskSplitCollection.create_splits_for_repeating_task(task, end)
+                self._task_splits += TaskSplitCollection.create_splits_for_repeating_task(task, start, end)
         self._is_split_visible = bitarray(len(self._task_splits))
         self._is_split_visible.setall(True)
 
@@ -226,7 +226,7 @@ class TaskSplitCollection:
         )
 
     @staticmethod
-    def create_splits_for_repeating_task(task: RepeatingTask, end_time: YotsubaTime) -> list[_TaskSplit]:
+    def create_splits_for_repeating_task(task: RepeatingTask, start_time: YotsubaTime, end_time: YotsubaTime) -> list[_TaskSplit]:
         splits: list[_TaskSplit] = []
         current_schedule_after = task.start
         current_schedule_before = task.first_due_date
@@ -235,14 +235,13 @@ class TaskSplitCollection:
             # Basically we can sort of treat RepeatingTasks as multiple OnceTasks,
             # where the schedule_after is the last occurence's due date, and the schedule_before is this occurence's due date.
 
-            if current_schedule_before > end_time:
-                current_schedule_before = end_time
 
-            splits += TaskSplitCollection.create_splits_given_duration(
-                task, 
-                current_schedule_after, 
-                current_schedule_before, 
-                YotsubaTime(task.minimum_split_size) if task.minimum_split_size is not None else task.duration
+            if current_schedule_before > start_time:  # skip periods that ended before the window
+                splits += TaskSplitCollection.create_splits_given_duration(
+                    task,
+                    max(current_schedule_after, start_time),
+                    min(current_schedule_before, end_time),
+                    YotsubaTime(task.minimum_split_size) if task.minimum_split_size is not None else task.duration
                 )
             
             current_schedule_after = current_schedule_before
