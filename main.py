@@ -135,6 +135,11 @@ class OnceTask:
     minimum_split_size: int | None # None means no minimum split size, use entire duration
 
     def __init__(self, name: str, due_date: datetime, duration: int, minimum_split_size: int | None = 1, schedule_after: datetime | None = None):
+        if duration <= 0:
+            raise ValueError('duration must be positive')
+        if minimum_split_size is not None and minimum_split_size <= 0:
+            raise ValueError('minimum_split_size must be positive')
+
         self.name = name
         self.due_date = YotsubaTime(due_date)
         self.duration = YotsubaTime(duration)
@@ -150,6 +155,13 @@ class RepeatingTask:
     minimum_split_size: int | None # None means no minimum split size, use entire duration
 
     def __init__(self, name: str, start: datetime, first_due_date: datetime, duration: int, due_date_repeats_every: timedelta, minimum_split_size: int | None = 1):
+        if duration <= 0:
+            raise ValueError('duration must be positive')
+        if minimum_split_size is not None and minimum_split_size <= 0:
+            raise ValueError('minimum_split_size must be positive')
+        if self.due_date_repeats_every <= 0:
+            raise ValueError('due_date_repeats_every must be positive')
+
         self.name = name
         self.start = YotsubaTime(start)
         self.first_due_date = YotsubaTime(first_due_date)
