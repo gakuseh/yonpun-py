@@ -169,7 +169,7 @@ class RepeatingTask:
         self.due_date_repeats_every = YotsubaTime(due_date_repeats_every)
         self.minimum_split_size = minimum_split_size
 
-class _TaskSplit:
+class TaskSplit:
     task: OnceTask | RepeatingTask
     schedule_after: YotsubaTime
     schedule_before: YotsubaTime
@@ -182,7 +182,7 @@ class _TaskSplit:
         self.duration = duration
 
 class TaskSplitCollection:
-    _task_splits: list[_TaskSplit]
+    _task_splits: list[TaskSplit]
     _is_split_visible: bitarray
 
     def __init__(self, tasks: list[OnceTask | RepeatingTask], start: YotsubaTime, end: YotsubaTime):
@@ -196,12 +196,12 @@ class TaskSplitCollection:
         self._is_split_visible = bitarray(len(self._task_splits))
         self._is_split_visible.setall(True)
 
-    def __iter__(self) -> Iterator[_TaskSplit]:
+    def __iter__(self) -> Iterator[TaskSplit]:
         for split, visible in zip(self._task_splits, self._is_split_visible):
             if visible:
                 yield split
 
-    def visible_indexed(self) -> Iterator[tuple[int, _TaskSplit]]:
+    def visible_indexed(self) -> Iterator[tuple[int, TaskSplit]]:
         for i, (split, visible) in enumerate(zip(self._task_splits, self._is_split_visible)):
             if visible:
                 yield i, split
@@ -211,25 +211,25 @@ class TaskSplitCollection:
     def show(self, index: int): self._is_split_visible[index] = True
 
     @staticmethod
-    def create_splits_given_duration(task: OnceTask | RepeatingTask, schedule_after: YotsubaTime, schedule_before: YotsubaTime, minimum_split_size: YotsubaTime) -> list[_TaskSplit]:
+    def create_splits_given_duration(task: OnceTask | RepeatingTask, schedule_after: YotsubaTime, schedule_before: YotsubaTime, minimum_split_size: YotsubaTime) -> list[TaskSplit]:
         '''Given a task, a schedule_after time, a schedule_before time, and a minimum split size, creates splits for the task.
         
         Multiple other methods require this functionality, so this method is split out to avoid code duplication.
         '''
         duration_left = task.duration
-        splits: list[_TaskSplit] = []
+        splits: list[TaskSplit] = []
         
         while (duration_left - minimum_split_size) >= 0:
-            splits.append(_TaskSplit(task, schedule_after, schedule_before, minimum_split_size))
+            splits.append(TaskSplit(task, schedule_after, schedule_before, minimum_split_size))
             duration_left -= minimum_split_size
 
         if duration_left > 0:
-            splits.append(_TaskSplit(task, schedule_after, schedule_before, duration_left))
+            splits.append(TaskSplit(task, schedule_after, schedule_before, duration_left))
 
         return splits
 
     @staticmethod
-    def create_splits_for_once_task(task: OnceTask, start_time: YotsubaTime) -> list[_TaskSplit]:
+    def create_splits_for_once_task(task: OnceTask, start_time: YotsubaTime) -> list[TaskSplit]:
         return TaskSplitCollection.create_splits_given_duration(
             task, 
             task.schedule_after if task.schedule_after is not None else start_time, 
@@ -238,8 +238,8 @@ class TaskSplitCollection:
         )
 
     @staticmethod
-    def create_splits_for_repeating_task(task: RepeatingTask, start_time: YotsubaTime, end_time: YotsubaTime) -> list[_TaskSplit]:
-        splits: list[_TaskSplit] = []
+    def create_splits_for_repeating_task(task: RepeatingTask, start_time: YotsubaTime, end_time: YotsubaTime) -> list[TaskSplit]:
+        splits: list[TaskSplit] = []
         current_schedule_after = task.start
         current_schedule_before = task.first_due_date
 
@@ -261,7 +261,7 @@ class TaskSplitCollection:
 
         return splits
 
-    def get_task_splits(self) -> list[_TaskSplit]:
+    def get_task_splits(self) -> list[TaskSplit]:
         return self._task_splits
 
 
