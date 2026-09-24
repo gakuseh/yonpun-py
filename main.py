@@ -6,17 +6,17 @@ from bitarray import bitarray
 
 _EPOCH = 1043107200
 _UNIT = 900
-
+_UNIT_DELTA = timedelta(seconds=_UNIT)
 
 class YotsubaTime:
     time: int
 
-    def __init__(self, time: int | datetime | timedelta | YotsubaTime):
+    def __init__(self, time: int | datetime | timedelta | YotsubaTime, floor: bool = False):
         if isinstance(time, datetime):
             delta = time.astimezone(timezone.utc) - datetime.fromtimestamp(_EPOCH, tz=timezone.utc)
-            self.time = -((-delta) // timedelta(seconds=_UNIT))  # exact ceiling division
+            self.time = delta // _UNIT_DELTA if floor else -((-delta) // _UNIT_DELTA)
         elif isinstance(time, timedelta):
-            self.time = -((-time) // timedelta(seconds=_UNIT))
+            self.time = time // _UNIT_DELTA if floor else -((-time) // _UNIT_DELTA)
         elif isinstance(time, YotsubaTime):
             self.time = time.time
         else:
@@ -141,7 +141,7 @@ class OnceTask:
             raise ValueError('minimum_split_size must be positive')
 
         self.name = name
-        self.due_date = YotsubaTime(due_date)
+        self.due_date = YotsubaTime(due_date, floor=True)
         self.duration = YotsubaTime(duration)
         self.minimum_split_size = minimum_split_size
         self.schedule_after = YotsubaTime(schedule_after) if schedule_after is not None else None
@@ -164,7 +164,7 @@ class RepeatingTask:
 
         self.name = name
         self.start = YotsubaTime(start)
-        self.first_due_date = YotsubaTime(first_due_date)
+        self.first_due_date = YotsubaTime(first_due_date, floor=True)
         self.duration = YotsubaTime(duration)
         self.due_date_repeats_every = YotsubaTime(due_date_repeats_every)
         self.minimum_split_size = minimum_split_size
