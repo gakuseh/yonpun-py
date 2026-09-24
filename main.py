@@ -151,7 +151,7 @@ class RepeatingTask:
     start: YotsubaTime
     first_due_date: YotsubaTime
     duration: YotsubaTime
-    due_date_repeats_every: YotsubaTime
+    due_date_repeats_every: YotsubaTime #TODO: Allow repeat at a particular time of day. Can screw up if repeats every is 24 hours when the user wants it to repeat at particular time of day, and daylight savings happens
     minimum_split_size: int | None # None means no minimum split size, use entire duration
 
     def __init__(self, name: str, start: datetime, first_due_date: datetime, duration: int, due_date_repeats_every: timedelta, minimum_split_size: int | None = 1):
