@@ -264,26 +264,6 @@ class TaskSplitCollection:
     def get_task_splits(self) -> list[_TaskSplit]:
         return self._task_splits
 
-class TaskSplitIterator:
-    index: int
-    collection: TaskSplitCollection
-
-    def __init__(self, collection: TaskSplitCollection):
-        self.collection = collection
-        self.index = 0
-
-    def __iter__(self):
-        return self
-
-    def __next__(self) -> _TaskSplit:
-        while self.index < len(self.collection._task_splits): # pyright: ignore[reportPrivateUsage]
-            if self.collection._is_split_visible[self.index]: # pyright: ignore[reportPrivateUsage]
-                split = self.collection._task_splits[self.index] # pyright: ignore[reportPrivateUsage]
-                self.index += 1
-                return split
-            self.index += 1
-        raise StopIteration
-
 
 # class Schedule:
 #     _events_by_time: list[OnceOffTime | RepeatingOffTime | OnceTask | RepeatingTask | None]
