@@ -1,23 +1,22 @@
 from __future__ import annotations
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections.abc import Iterator
-from typing import Self, Any
+from typing import Any
 from bitarray import bitarray
+
+_EPOCH = 1043107200
+_UNIT = 900
+
 
 class YotsubaTime:
     time: int
 
     def __init__(self, time: int | datetime | timedelta | YotsubaTime):
         if isinstance(time, datetime):
-            if (time.timestamp() - 1043107200) % 900 == 0:
-                self.time = int((time.timestamp() - 1043107200) / 900)
-            else:
-                self.time = int((time.timestamp() - 1043107200) / 900) + 1
+            delta = time.astimezone(timezone.utc) - datetime.fromtimestamp(_EPOCH, tz=timezone.utc)
+            self.time = -((-delta) // timedelta(seconds=_UNIT))  # exact ceiling division
         elif isinstance(time, timedelta):
-            if time.total_seconds() % 900 == 0:
-                self.time = int(time.total_seconds() / 900)
-            else:
-                self.time = int(time.total_seconds() / 900) + 1
+            self.time = -((-time) // timedelta(seconds=_UNIT))
         elif isinstance(time, YotsubaTime):
             self.time = time.time
         else:
@@ -26,75 +25,83 @@ class YotsubaTime:
     def __add__(self, other: int | datetime | timedelta | YotsubaTime) -> YotsubaTime:
         if isinstance(other, int):
             return YotsubaTime(self.time + other)
-        elif isinstance(other, datetime):
+        elif isinstance(other, (datetime, timedelta)):
             return YotsubaTime(self.time + YotsubaTime(other).time)
-        elif isinstance(other, timedelta):
-            return YotsubaTime(self.time + YotsubaTime(other).time)
-        else:
+        elif isinstance(other, YotsubaTime):
             return YotsubaTime(self.time + other.time)
+        return NotImplemented
+
+    __radd__ = __add__
 
     def __sub__(self, other: int | datetime | timedelta | YotsubaTime) -> YotsubaTime:
         if isinstance(other, int):
             return YotsubaTime(self.time - other)
-        elif isinstance(other, datetime):
+        elif isinstance(other, (datetime, timedelta)):
             return YotsubaTime(self.time - YotsubaTime(other).time)
-        elif isinstance(other, timedelta):
-            return YotsubaTime(self.time - YotsubaTime(other).time)
-        else:
+        elif isinstance(other, YotsubaTime):
             return YotsubaTime(self.time - other.time)
+        return NotImplemented
 
-    def __floordiv__(self, other: int):
+    def __floordiv__(self, other: int) -> YotsubaTime:
         return YotsubaTime(self.time // other)
 
-    def __mul__(self, other: int):
+    def __mul__(self, other: int) -> YotsubaTime:
         return YotsubaTime(self.time * other)
 
-    def to_datetime(self) -> datetime:
-        return datetime.fromtimestamp(self.time * 900 + 1043107200)
+    __rmul__ = __mul__
 
-    def __lt__(self, other: Self | int | datetime):
+    def to_datetime(self) -> datetime:
+        return datetime.fromtimestamp(self.time * _UNIT + _EPOCH)
+
+    def __lt__(self, other: int | datetime | timedelta | YotsubaTime) -> bool:
         if isinstance(other, YotsubaTime):
             return self.time < other.time
         elif isinstance(other, int):
             return self.time < other
-        else:
+        elif isinstance(other, (datetime, timedelta)):
             return self.time < YotsubaTime(other).time
+        return NotImplemented
 
-    def __gt__(self, other: Self | int | datetime):
+    def __gt__(self, other: int | datetime | timedelta | YotsubaTime) -> bool:
         if isinstance(other, YotsubaTime):
             return self.time > other.time
         elif isinstance(other, int):
             return self.time > other
-        else:
+        elif isinstance(other, (datetime, timedelta)):
             return self.time > YotsubaTime(other).time
+        return NotImplemented
 
-    def __eq__(self, other: Any):
-        if isinstance(other, YotsubaTime):
-            return self.time == other.time
-        elif isinstance(other, int):
-            return self.time == other
-        elif isinstance(other, datetime):
-            return self.time == YotsubaTime(other).time
-        else:
-            return False
-
-    def __le__(self, other: Self | int | datetime):
+    def __le__(self, other: int | datetime | timedelta | YotsubaTime) -> bool:
         if isinstance(other, YotsubaTime):
             return self.time <= other.time
         elif isinstance(other, int):
             return self.time <= other
-        else:
+        elif isinstance(other, (datetime, timedelta)):
             return self.time <= YotsubaTime(other).time
+        return NotImplemented
 
-    def __ge__(self, other: Self | int | datetime):
+    def __ge__(self, other: int | datetime | timedelta | YotsubaTime) -> bool:
         if isinstance(other, YotsubaTime):
             return self.time >= other.time
         elif isinstance(other, int):
             return self.time >= other
-        else:
+        elif isinstance(other, (datetime, timedelta)):
             return self.time >= YotsubaTime(other).time
+        return NotImplemented
 
-    def __repr__(self):
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, YotsubaTime):
+            return self.time == other.time
+        elif isinstance(other, int):
+            return self.time == other
+        elif isinstance(other, (datetime, timedelta)):
+            return self.time == YotsubaTime(other).time
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        return hash(self.time)
+
+    def __repr__(self) -> str:
         return f"{self.time}YT"
 
 class OnceOffTime:
