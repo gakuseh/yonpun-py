@@ -184,6 +184,7 @@ class TaskSplit:
 class TaskSplitCollection:
     _task_splits: list[TaskSplit]
     _is_split_visible: bitarray
+    _count_visible: int
 
     def __init__(self, tasks: list[OnceTask | RepeatingTask], start: YotsubaTime, end: YotsubaTime):
         self._task_splits = []
@@ -195,6 +196,7 @@ class TaskSplitCollection:
                 self._task_splits += TaskSplitCollection.create_splits_for_repeating_task(task, start, end)
         self._is_split_visible = bitarray(len(self._task_splits))
         self._is_split_visible.setall(True)
+        self._count_visible = len(self._task_splits)
 
     def __iter__(self) -> Iterator[TaskSplit]:
         for split, visible in zip(self._task_splits, self._is_split_visible):
@@ -206,9 +208,22 @@ class TaskSplitCollection:
             if visible:
                 yield i, split
 
-    def hide(self, index: int): self._is_split_visible[index] = False
+    def has_visible_splits(self) -> bool:
+        return self._count_visible > 0
+
+    def hide(self, index: int):
+        if not self._is_split_visible[index]:
+            raise ValueError(f'Attempt to hide split at index {index} when it is already hidden')
+
+        self._is_split_visible[index] = False
+        self._count_visible -= 1
     
-    def show(self, index: int): self._is_split_visible[index] = True
+    def show(self, index: int): 
+        if self._is_split_visible[index]:
+            raise ValueError(f'Attempt to show split at index {index} when it is already visible')
+
+        self._is_split_visible[index] = True
+        self._count_visible += 1
 
     @staticmethod
     def create_splits_given_duration(task: OnceTask | RepeatingTask, schedule_after: YotsubaTime, schedule_before: YotsubaTime, minimum_split_size: YotsubaTime) -> list[TaskSplit]:
