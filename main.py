@@ -118,14 +118,14 @@ class RepeatingOffTime:
     name: str
     start: YotsubaTime
     duration: YotsubaTime
-    repeat_every_days: int
+    repeat_every: YotsubaTime
     
 
-    def __init__(self, name: str, start: datetime, duration: int, repeat_every_days: int):
+    def __init__(self, name: str, start: datetime, duration: int, repeat_every: timedelta):
         self.name = name
         self.start = YotsubaTime(start)
         self.duration = YotsubaTime(duration)
-        self.repeat_every_days = repeat_every_days
+        self.repeat_every = YotsubaTime(repeat_every)
 
 class OnceTask:
     name: str
