@@ -289,50 +289,141 @@ class TaskSplitCollection:
     def get_task_splits(self) -> list[TaskSplit]:
         return self._task_splits
 
+class Schedule:
+    _events_by_time: list[OnceOffTime | RepeatingOffTime | OnceTask | RepeatingTask | None]
+    _times_by_event: dict[OnceOffTime | RepeatingOffTime | OnceTask | RepeatingTask, list[YotsubaTime]]
+    _first_time: YotsubaTime
 
-# class Schedule:
-#     _events_by_time: list[OnceOffTime | RepeatingOffTime | OnceTask | RepeatingTask | None]
-#     _times_by_event: dict[OnceOffTime | RepeatingOffTime | OnceTask | RepeatingTask, list[YotsubaTime]]
-#     _first_time: YotsubaTime
+    def __init__(self, tasks: list[OnceTask | RepeatingTask], off_times: list[OnceOffTime | RepeatingOffTime], first_time: datetime):
+        self._first_time = YotsubaTime(first_time)
 
-#     def __init__(self, tasks: list[OnceTask | RepeatingTask], off_times: list[OnceOffTime | RepeatingOffTime], first_time: datetime):
-#         first_time = YotsubaTime(first_time)
+        last_due_date = max([task.due_date for task in tasks if isinstance(task, OnceTask)], default=self._first_time)
 
-#         last_due_date = max([task.due_date for task in tasks if isinstance(task, OnceTask)], default=first_time)
+        self._events_by_time = [None] * (last_due_date - self._first_time).time
 
-#         self._events_by_time = [None] * (last_due_date - first_time)
+        # place down offtimes
+        for off_time in off_times:
+            if isinstance(off_time, OnceOffTime):
+                self.place_once_offtime(off_time)
+            else:
+                self.place_repeating_offtime(off_time)
 
+        backtrack_result = self._backtrack_place_splits(TaskSplitCollection(tasks, self._first_time, last_due_date))
+
+        if not backtrack_result:
+            raise ValueError("Could not place all tasks in the schedule given the constraints.")
+
+        self._generate_times_by_event()
+
+    def _find_next_gap(self, start_index: int, duration: int, stop_index: int) -> int | None:
+        '''Searches the events_by_time list for the next gap of at least 
+        'duration' length, starting from 'start_index' and not exceeding 
+        'stop_index'. Returns the index of the start of the gap if found, 
+        otherwise returns None.
         
+        Automatically accounts for duration of the task. Thus, do not adjust stop_index to account for duration; this method will do that automatically.'''
+
+        last_start = min(stop_index, len(self._events_by_time)) - duration
+
+        for i in range(start_index, last_start + 1):
+            if all(self._events_by_time[j] is None for j in range(i, i + duration)):
+                return i
+        return None
+
+    def _place_task_at_range(self, task: OnceTask | RepeatingTask, start: int, stop: int):
+        '''Places tasks in the schedule on the range [start, stop). Raises ValueError if the range is already occupied or out of bounds]'''
+        for i in range(start, stop):
+            if i >= len(self._events_by_time):
+                raise ValueError(f"Index {i} is out of bounds for events_by_time with length {len(self._events_by_time)}")
+
+            if self._events_by_time[i] is not None:
+                raise ValueError(f"Time slot at index {i} is already occupied by {self._events_by_time[i]}")
+
+            self._events_by_time[i] = task
+
+    def _remove_task_from_range(self, start: int, stop: int):
+        for i in range(start, stop):
+            if i >= len(self._events_by_time):
+                raise ValueError(f"Index {i} is out of bounds for events_by_time with length {len(self._events_by_time)}")
+
+            if self._events_by_time[i] is None:
+                raise ValueError(f"Time slot at index {i} is already empty")
+
+            self._events_by_time[i] = None
 
 
-def _test_yotsuba_time():
-    current_time = datetime.now()
+    def _backtrack_place_splits(self, split_collection: TaskSplitCollection) -> bool:
+        for i, split in split_collection.visible_indexed():
+            schedule_after_index = (split.schedule_after - self._first_time).time
+            schedule_before_index = min((split.schedule_before - self._first_time).time, len(self._events_by_time))
 
-    print('Current time:', current_time.strftime('%Y-%m-%d %H:%M:%S'))
+            next_gap = self._find_next_gap(schedule_after_index, split.duration.time, schedule_before_index)
 
-    yotsuba_time = YotsubaTime(current_time)
+            # Within this while loop, we will be placing the split
+            # Thus no further recursive calls should use the same split, so we hide it from the split collection
+            split_collection.hide(i)
 
-    print('Yotsuba time:', yotsuba_time.time)
-    print('Yotsuba time as datetime:', yotsuba_time.to_datetime().strftime('%Y-%m-%d %H:%M:%S'))
+            while next_gap is not None:
+                self._place_task_at_range(split.task, next_gap, next_gap + split.duration.time)
+
+                if self._backtrack_place_splits(split_collection):
+                    return True
+
+                # If we are here, then the split placement did not lead to a solution
+                # Don't backtrack yet; instead, remove the task from the range and try a next gap
+                self._remove_task_from_range(next_gap, next_gap + split.duration.time)
+
+                # Try the next gap
+                next_gap = self._find_next_gap(next_gap + 1, split.duration.time, schedule_before_index)
+
+            # If we are here, then we have tried all gaps for this split and none led to a solution
+            # Thus we show the split for future recursive calls
+            split_collection.show(i)
+
+        # got to end of the split collection, so EITHER all splits have been placed
+        # OR there are still splits left to place, but we couldn't find a gap for any of them, so we backtrack
+        if (not split_collection.has_visible_splits()):
+            return True
+        return False
+
+    def _generate_times_by_event(self):
+        self._times_by_event = {}
+        for index, event in enumerate(self._events_by_time):
+            if event is not None:
+                if event not in self._times_by_event:
+                    self._times_by_event[event] = []
+                self._times_by_event[event].append(self._first_time + index)
 
 
+    def place_once_offtime(self, off_time: OnceOffTime):
+        '''Places a OnceOffTime in the schedule. If the off time is outside the bounds of the schedule, it will be truncated to fit within the schedule.'''
 
-    print()
+        start_index: int = max(0, (off_time.start - self._first_time).time)
+        end_index: int = min((off_time.end - self._first_time).time, len(self._events_by_time))
 
+        for i in range(start_index, end_index):
+            self._events_by_time[i] = off_time
 
+    def place_repeating_offtime(self, off_time: RepeatingOffTime):
+        '''Places a RepeatingOffTime in the schedule. If the off time is outside the bounds of the schedule, it will be truncated to fit within the schedule.'''
 
-    parse_string = "2024-06-01 00:00:01"
-    parsed_time = datetime.strptime(parse_string, "%Y-%m-%d %H:%M:%S")
-    yotsuba_time_from_string = YotsubaTime(parsed_time)
+        current_start_index: int = max(0, (off_time.start - self._first_time).time)
 
-    print('Parsed time:', parsed_time.strftime('%Y-%m-%d %H:%M:%S'))
-    print('Yotsuba time from string:', yotsuba_time_from_string.time)
-    print('Yotsuba time from string as datetime:', yotsuba_time_from_string.to_datetime().strftime('%Y-%m-%d %H:%M:%S'))
+        while current_start_index < len(self._events_by_time):
+            for i in range(current_start_index, min(current_start_index + off_time.duration.time, len(self._events_by_time))):
+                self._events_by_time[i] = off_time
 
-def _test_split_create():
-    task = OnceTask("Test Task", datetime.now() + timedelta(hours=1), 14)
-    splits = TaskSplitCollection.create_splits_for_once_task(task, YotsubaTime(datetime.now()))
-    for split in splits:
-        print(f"Split: {split.task.name}, Start: {split.schedule_after}, End: {split.schedule_before}, Duration: {split.duration}")
+            current_start_index += off_time.repeat_every.time
 
-_test_split_create()
+    def get_event_at_time(self, time: YotsubaTime) -> OnceOffTime | RepeatingOffTime | OnceTask | RepeatingTask | None:
+        index: int = (time - self._first_time).time
+        if 0 <= index < len(self._events_by_time):
+            return self._events_by_time[index]
+        else:
+            raise ValueError(f"Time {time} is out of bounds for the schedule.")
+
+    def get_times_for_event(self, event: OnceOffTime | RepeatingOffTime | OnceTask | RepeatingTask) -> list[YotsubaTime]:
+        if event in self._times_by_event:
+            return self._times_by_event[event]
+        else:
+            raise ValueError(f"Event {event} is not in the schedule.")
