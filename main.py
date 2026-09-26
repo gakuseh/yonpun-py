@@ -109,7 +109,10 @@ class OnceOffTime:
     start: YotsubaTime
     end: YotsubaTime
 
-    def __init__(self, name: str, start:  datetime, end: datetime):
+    def __init__(self, name: str, start: datetime, end: datetime):
+        if end <= start:
+            raise ValueError('OnceOffTime end must be after start')
+
         self.name = name
         self.start = YotsubaTime(start)
         self.end = YotsubaTime(end)
@@ -122,6 +125,11 @@ class RepeatingOffTime:
     
 
     def __init__(self, name: str, start: datetime, duration: int, repeat_every: timedelta):
+        if duration <= 0:
+            raise ValueError('RepeatingOffTime duration must be positive')
+        if repeat_every <= timedelta(0):
+            raise ValueError('RepeatingOffTime repeat_every must be positive')
+
         self.name = name
         self.start = YotsubaTime(start)
         self.duration = YotsubaTime(duration)
@@ -139,6 +147,8 @@ class OnceTask:
             raise ValueError('duration must be positive')
         if minimum_split_size is not None and minimum_split_size <= 0:
             raise ValueError('minimum_split_size must be positive')
+        if schedule_after is not None and schedule_after > due_date:
+            raise ValueError('schedule_after must be before due_date')
 
         self.name = name
         self.due_date = YotsubaTime(due_date, floor=True)
@@ -159,7 +169,7 @@ class RepeatingTask:
             raise ValueError('duration must be positive')
         if minimum_split_size is not None and minimum_split_size <= 0:
             raise ValueError('minimum_split_size must be positive')
-        if self.due_date_repeats_every <= 0:
+        if due_date_repeats_every <= timedelta(0):
             raise ValueError('due_date_repeats_every must be positive')
 
         self.name = name
